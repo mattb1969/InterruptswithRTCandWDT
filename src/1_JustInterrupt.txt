@@ -1,0 +1,121 @@
+This is the first version of the file - it goes into deep sleep and triggers on rising edge.
+
+/*
+ * File: 1_JustInterrupt.txt
+ * Project: src
+ * File Created: Monday, 1st February 2021 10:37:42 pm
+ * Author: Matthew Bennett (matthew@mlbennett.com)
+ * -----
+ * Last Modified: Monday, 1st February 2021 10:37:42 pm
+ * Modified By: Matthew Bennett (matthew@mlbennett.com>)
+ * -----
+ * Copyright - 2021 
+ * <<license>>
+ */
+
+
+/* This project is testing the functionality of interrupts when in different operating modes
+* It has taken inspiration from my weather station project 
+
+This is version 1
+This has a simple setup of interrupts to be triggered on edge when in deep sleep
+*/
+
+#include <MKRWAN.h>
+
+static const uint8_t        INTERRUPT_SENSOR_PIN = 4;
+static const uint16_t       SEND_FREQUENCY = 30;         // Send freq in Seconds
+
+static const uint8_t        TESTMODE_SET = 1;
+
+volatile bool       rtc_triggered = false;
+
+volatile bool        TEST_MODE = false;
+volatile bool        DEBUG = true;
+volatile bool       WATCHDOG_ENABLED = false;
+volatile bool       RTC_ENABLED = false;
+
+//------------------------------------------------------------------------------
+// Generic modules
+
+void blink_led(int ontime=100, int offtime=50, int flashes=1) {
+    while (flashes >0) {
+        digitalWrite(LED_BUILTIN, HIGH);
+        delayMicroseconds(ontime*1000);
+        digitalWrite(LED_BUILTIN, LOW);
+        if (flashes > 1) delayMicroseconds(offtime*1000);           // If it is not the last flash, wait until returning to the top of the loop
+        flashes --;
+    }
+    return;
+}
+
+// ISR Routine for the pin being activated
+void interruptCalled() {
+    digitalWrite(LED_BUILTIN, HIGH);
+    if (DEBUG) Serial.println("Interrupt");
+
+    delayMicroseconds(250*1000);
+
+    digitalWrite(LED_BUILTIN, LOW);
+}
+
+void EICRisingEdgeConfig() {
+
+    NOT USED!!!!
+
+
+    GCLK->CLKCTRL.reg =     GCLK_CLKCTRL_CLKEN |                    //Enable Generic Clock
+                            GCLK_CLKCTRL_GEN_GCLK1 |                // Select GCLK1 as XOSC32K
+                            GCLK_CLKCTRL_ID_EIC;                    // Route GCLK1 to the EIC
+    
+    while (GCLK->STATUS.bit.SYNCBUSY); //Wait for the settings to be synchronized
+    
+    // Not sure if this bit is right as the code example was FILTEN6 . . .
+   // EIC->CONFIG[0].reg |=   EIC_CONFIG_FILTEN6 |                    // 
+   //                         EIC_CONFIG_SENSE6_RISE;
+
+    while (EIC->STATUS.bit.SYNCBUSY); //Wait for the settings to be synchronized
+
+    EIC->CTRL.bit.ENABLE = 1;                                                // Enable the EIC peripheral
+    while (EIC->STATUS.bit.SYNCBUSY); 
+    
+}
+
+void setup () {
+    
+    //Set all pins to input and 
+    
+    pinMode(LED_BUILTIN, OUTPUT);
+    pinMode(TESTMODE_SET, INPUT_PULLDOWN);
+    pinMode(INTERRUPT_SENSOR_PIN, INPUT_PULLDOWN);
+    
+    USBDevice.detach();
+    blink_led(50, 450, 5);
+
+    //EICRisingEdgeConfig();            // Not required as script works without it.
+
+    // Setup interrupts
+    attachInterrupt(digitalPinToInterrupt(INTERRUPT_SENSOR_PIN), interruptCalled, RISING);
+
+    SYSCTRL->VREG.bit.RUNSTDBY = 1; // Keep the voltage regulator in normal configuration during run standby
+
+    This is probably the key line to turn on the clock in deep sleep
+    SYSCTRL->DFLLCTRL.bit.RUNSTDBY = 1;     // Enable the DFLL48M clock in standby mode as this is used by the EIC
+
+    NVMCTRL->CTRLB.reg |= NVMCTRL_CTRLB_SLEEPPRM_DISABLED; // Disable auto power reduction during sleep - SAMD21 Errata 1.14.2
+}
+
+void loop() {
+
+
+    // Go to sleep and wait for an interrupt to trigger
+    SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
+    __DSB();
+    __WFI();
+
+
+    //Flashtehled twice when it comes out of sleep before it goes back to sleep
+    blink_led(100, 200, 2);
+
+
+}
