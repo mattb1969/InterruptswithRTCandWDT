@@ -133,10 +133,11 @@ void rtcSetup() {
                             GCLK_GENCTRL_DIVSEL;                // Enabler Divide Selection
     while (GCLK->STATUS.reg & GCLK_STATUS_SYNCBUSY);
   
-    GCLK->CLKCTRL.reg = (uint32_t)((
+    GCLK->CLKCTRL.reg = (uint32_t)
                             GCLK_CLKCTRL_CLKEN |                // Enable the generic clock by setting the Clock Enabler bit
                             GCLK_CLKCTRL_GEN_GCLK1 |            // Select Generic Clock 1
-                            (RTC_GCLK_ID << GCLK_CLKCTRL_ID_Pos)));     // Identify it as the RTC Clock - shifting it to the right position
+                            (RTC_GCLK_ID << GCLK_CLKCTRL_ID_Pos);     // Identify it as the RTC Clock - shifting it to the right position
+//ToDo1:Try this instead of the line above                            //GCLK_CLKCTRL_ID_RTC
     while (GCLK->STATUS.bit.SYNCBUSY);                          // Wait for synchronisation to complete
 
 
@@ -361,3 +362,49 @@ void loop() {
     }
 
 }
+
+
+void base_setup() {
+    //Set all pins to input and 
+    
+    pinMode(LED_BUILTIN, OUTPUT);
+    pinMode(TESTMODE_SET, INPUT_PULLDOWN);
+    pinMode(INTERRUPT_SENSOR_PIN, INPUT_PULLDOWN);
+    
+    USBDevice.detach();
+    blink_led(50, 450, 5);
+
+}
+
+void base_loop() {
+
+    // Test for power
+
+    digitalWrite(LED_BUILTIN, HIGH);
+    if (DEBUG) Serial.println("Interrupt");
+
+    delayMicroseconds(250*1000);
+
+    digitalWrite(LED_BUILTIN, LOW);
+
+    delayMicroseconds(2500*1000);
+
+    SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
+    __DSB();
+    __WFI();
+
+}
+
+/*
+
+To Try
+Use only 1 clock
+Use only OSCULP32K
+
+Use a single Generic Clock Controller
+
+Set all I/O to input with pullup
+
+
+
+*/
