@@ -10,21 +10,10 @@ It has the added timer counter to transmit evry 30 seconds
 
 #include <MKRWAN.h>
 
-#include "ArduinoLowPower.h"
-
 static const uint8_t        INTERRUPT_SENSOR_PIN = 4;
 static const uint16_t       SEND_FREQUENCY = 30;         // Send freq in Seconds
 
-static const uint8_t        TESTMODE_SET = 1;
-
 volatile bool               rtc_triggered = false;
-
-volatile bool               TEST_MODE = false;
-volatile bool               DEBUG = true;
-volatile bool               WATCHDOG_ENABLED = true;
-volatile bool               RTC_ENABLED = true;
-volatile bool               OTHER_ENABLED = false;
-volatile bool               EIC_ENABLED = true;
 
 volatile int                WDTCounter;
 volatile int                RTCDuration = 5;
@@ -46,7 +35,6 @@ void blink_led(int ontime=100, int offtime=50, int flashes=1) {
 // ISR Routine for the pin being activated
 void interruptCalled() {
     digitalWrite(LED_BUILTIN, HIGH);
-    if (DEBUG) Serial.println("Interrupt");
 
     delayMicroseconds(250*1000);
 
@@ -75,7 +63,6 @@ void EICRisingEdgeConfig() {
 
     // Configure the clock to the Generic Clock Generator, plan to use GEN CLOCK 4
     GCLK->GENDIV.reg =      GCLK_GENDIV_ID(4);                  // Select Generic Clock Controller 4
- 
     while (GCLK->STATUS.reg & GCLK_STATUS_SYNCBUSY);
   
     GCLK->GENCTRL.reg =     GCLK_GENCTRL_ID(4) |                // Select Generic Clock Controller 4
@@ -85,18 +72,11 @@ void EICRisingEdgeConfig() {
 
     GCLK->CLKCTRL.reg =     GCLK_CLKCTRL_CLKEN |                //Enable Generic Clock
                             GCLK_CLKCTRL_GEN_GCLK4 |            // Select GCLK4
-                            GCLK_CLKCTRL_ID_EIC;                // Route GCLK4 to the EIC
-    
+                            GCLK_CLKCTRL_ID_EIC;                // Route GCLK4 to the EIC 
     while (GCLK->STATUS.bit.SYNCBUSY); //Wait for the settings to be synchronized
-    
-    // Not sure if this bit is right as the code example was FILTEN6 . . .
-   // EIC->CONFIG[0].reg |=   EIC_CONFIG_FILTEN6 |                    // 
-   //                         EIC_CONFIG_SENSE6_RISE;
 
-    while (EIC->STATUS.bit.SYNCBUSY); //Wait for the settings to be synchronized
-
-    EIC->CTRL.bit.ENABLE = 1;                                                // Enable the EIC peripheral
-                                                                            // This is already set in the WinInterrupts.c in the core
+    EIC->CTRL.bit.ENABLE = 1;                                   // Enable the EIC peripheral
+                                                                // This is already set in the WinInterrupts.c in the core
     while (EIC->STATUS.bit.SYNCBUSY); 
     
 }
@@ -114,51 +94,28 @@ void rtcEnable() {
 
 void rtcSetup() {
 
-
-    // All taken from RTC Begin...
-    
-    // This line is in the config file
-    // PM->APBAMASK.reg |= PM_APBAMASK_RTC; // turn on digital interface clock
-
-    //This is from config32kOSC
-    //RTC is using XOSC32K
-/* Commented out as using OSCULP32K
-    SYSCTRL->XOSC32K.reg =  SYSCTRL_XOSC32K_ONDEMAND |          //S et it to run on demand
-                            SYSCTRL_XOSC32K_RUNSTDBY |          // Set it to run in standby mode
-                            SYSCTRL_XOSC32K_EN32K |             // Enable the Oscillator
-                            SYSCTRL_XOSC32K_XTALEN |            // enablesd external crystal as a oscillator
-                            SYSCTRL_XOSC32K_STARTUP(6) |        // Time allowed for startup stablisation
-                            SYSCTRL_XOSC32K_ENABLE;             // 
-*/
-
-
     // The above code configures the clock, setting it to run in Idle or Standby sleep modes
     // Setting run standby = 1, on demand = 1 and enable = 1
-
-    // This is from configureClock
 
     // The bit below contains one subtle change to the RTC counter example.
     // Where the sample code uses GCLK2, I've changed it to GCLK1 in the places marked ***
 
     // Next configure the clock to the Generic Clock Generator, plan to use GEN CLOCK 1
-    GCLK->GENDIV.reg =      GCLK_GENDIV_ID(1) |                 // Select Generic Clock Controller 1        ***
+    GCLK->GENDIV.reg =      GCLK_GENDIV_ID(1) |                 // Select Generic Clock Controller 1
                             GCLK_GENDIV_DIV(4);                 // Set division factor to be 4
     while (GCLK->STATUS.reg & GCLK_STATUS_SYNCBUSY);
   
-    GCLK->GENCTRL.reg =     GCLK_GENCTRL_ID(1) |                // Select Generic Clock Controller 1        ***
+    GCLK->GENCTRL.reg =     GCLK_GENCTRL_ID(1) |                // Select Generic Clock Controller 1
                             GCLK_GENCTRL_GENEN |                // Enable the Generic Clock
-//                            GCLK_GENCTRL_SRC_XOSC32K |          // Set the source to be XOSC32K
-                            GCLK_GENCTRL_SRC_OSCULP32K |
+                            GCLK_GENCTRL_SRC_OSCULP32K |        // Use the ultra low power clock
                             GCLK_GENCTRL_DIVSEL;                // Enabler Divide Selection
     while (GCLK->STATUS.reg & GCLK_STATUS_SYNCBUSY);
   
     GCLK->CLKCTRL.reg = (uint32_t)
                             GCLK_CLKCTRL_CLKEN |                // Enable the generic clock by setting the Clock Enabler bit
                             GCLK_CLKCTRL_GEN_GCLK1 |            // Select Generic Clock 1
-                            //(RTC_GCLK_ID << GCLK_CLKCTRL_ID_Pos);     // Identify it as the RTC Clock - shifting it to the right position
-                            GCLK_CLKCTRL_ID_RTC;
+                            GCLK_CLKCTRL_ID_RTC;                // Configure the RTC to use this Generic Clock Controller
     while (GCLK->STATUS.bit.SYNCBUSY);                          // Wait for synchronisation to complete
-
 
     // Ensure the RTC is disabled before changing the values
     rtcDisable();
@@ -182,16 +139,11 @@ void rtcSetup() {
     NVIC_EnableIRQ(RTC_IRQn);                                   // enable RTC interrupt 
     NVIC_SetPriority(RTC_IRQn, 0x03);
 
-    //Enable the RTC                                I weonder if this should be later as I have not yet set the counter
-    //rtcEnable();
-
 }
 
 void rtcSetDuration(uint8_t duration) {
     // Duration is in seconds, whole values only allowed
     uint32_t    mode0Counter;
-
-    //gety2kepoch
 
     RTC->MODE0.READREQ.reg = RTC_READREQ_RREQ;                  // request a synchronisation of the address register (fixed to 0x10)
     while (RTC->MODE0.STATUS.bit.SYNCBUSY);                     // Wait for synchronisation to complete
@@ -201,7 +153,6 @@ void rtcSetDuration(uint8_t duration) {
 
     // calculate the new value for the compare value
     uint32_t nextAlarm = mode0Counter + (uint32_t) duration;
-
 
     // setAlarmY2kEpoch
     RTC->MODE0.COMP[0].reg = nextAlarm;                         // Compare value for the counter - triggers interrrupt flag on next clock cycle
@@ -220,9 +171,9 @@ void rtcSetDuration(uint8_t duration) {
 
 // The WDT Handler is called by the overriding arduino core
 void WDT_Handler(void) {
-    // This is called when teh watchdog is triggered, either early warning or timeout
-    WDTCounter--;                               // EWT down counter, makes multi cycle WDT possible
-    if (WDTCounter<=0) {                        // Software EWT counter run out of time : Reset
+    // This is called when the watchdog is triggered, either early warning or timeout
+    WDTCounter--;                                               // EWT down counter, makes multi cycle WDT possible
+    if (WDTCounter<=0) {                                        // Software EWT counter run out of time : Reset
         // The following line is used in the class where WDT)SHutdown is defined as a function to call on soft shutdown
         //if (WDT_Shutdown != NULL) WDT_Shutdown();   // run extra Shutdown functions if defined
         blink_led(50,50,5);
@@ -261,30 +212,12 @@ void wdtSetup() {
 
     WDTCounter = 0;
 
-    // Configure the Generic Clokc Generator
-/* Removed as it has been changed to use Gen Clk Ctrl 1 instead which is configured in rtcSetup
-    // Generic clock generator 2, divisor = 32 (2^(DIV+1))  = _x
-    GCLK->GENDIV.reg =  GCLK_GENDIV_ID(2) |                 // Select Generic Clock Controller 2
-                        GCLK_GENDIV_DIV(gclkDivisor);                // Set division factor to be _x
-
-    // Enable clock generator 2 using low-power 32.768kHz oscillator.
-    // With /32 divisor above, this yields 1024Hz clock.
-    GCLK->GENCTRL.reg = GCLK_GENCTRL_ID(2) |                // Select Generic Clock Controller 2
-                        GCLK_GENCTRL_GENEN |                // Enable the Generic Clock                 
-                        GCLK_GENCTRL_SRC_OSCULP32K |        // Set the source to be OSCULP32K
-                        GCLK_GENCTRL_DIVSEL;                // Enabler Divide Selection
-    while(GCLK->STATUS.bit.SYNCBUSY);                       // Wait for synchronisation to complete
-*/
-
-    // WDT clock = clock gen 2
-    // Swapped to clock gen 1 as per rtc
+    // WDT clock = clock gen 1, Using Generic Clock Generator 1 - same as rtc
     GCLK->CLKCTRL.reg = GCLK_CLKCTRL_ID_WDT |               // Identify it as the WDT Clock
                         GCLK_CLKCTRL_CLKEN |                // Enable the generic clock by setting the Clock Enabler bit
-                        //GCLK_CLKCTRL_GEN_GCLK2;             // Select Generic Clock 2
                         GCLK_CLKCTRL_GEN_GCLK1;             // Select Generic Clock 2
-// Switched to using Clock Controller 1
-    while(GCLK->STATUS.bit.SYNCBUSY);                       // Wait for synchronisation to complete
 
+    while(GCLK->STATUS.bit.SYNCBUSY);                       // Wait for synchronisation to complete
 
     // Enable WDT early-warning interrupt
     NVIC_DisableIRQ(WDT_IRQn);
@@ -324,6 +257,12 @@ void wdtReset() {
     return;
 }
 
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *
+ * Main Routines
+ * 
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
 void setup () {
     
     //Set all pins to input and pull up to see if it helps.
@@ -334,39 +273,27 @@ void setup () {
     }
 
     pinMode(LED_BUILTIN, OUTPUT);
-    pinMode(TESTMODE_SET, INPUT_PULLDOWN);
     pinMode(INTERRUPT_SENSOR_PIN, INPUT_PULLDOWN);
     
     USBDevice.detach();
     blink_led(50, 450, 5);
 
-    //EICRisingEdgeConfig();            // Not required as script works without it.
+    rtcSetup();
 
-    if (RTC_ENABLED) rtcSetup();
-
-    if (WATCHDOG_ENABLED) wdtSetup();
+    wdtSetup();
 
     // Setup interrupts
     attachInterrupt(digitalPinToInterrupt(INTERRUPT_SENSOR_PIN), interruptCalled, RISING);
     
-    if (EIC_ENABLED) EICRisingEdgeConfig();
+    EICRisingEdgeConfig();
     
-    if (OTHER_ENABLED) SYSCTRL->VREG.bit.RUNSTDBY = 1; // Keep the voltage regulator in normal configuration during run standby
-
-    if (OTHER_ENABLED) SYSCTRL->DFLLCTRL.bit.RUNSTDBY = 1;     // Enable the DFLL48M clock in standby mode as this is used by the EIC
-
-    if (OTHER_ENABLED) NVMCTRL->CTRLB.reg |= NVMCTRL_CTRLB_SLEEPPRM_DISABLED; // Disable auto power reduction during sleep - SAMD21 Errata 1.14.2
-
-    if (RTC_ENABLED) rtcSetDuration(RTCDuration);
+    rtcSetDuration(RTCDuration);
 
     // Enable the Watchdog
-    if (WATCHDOG_ENABLED) wdtEnable();
+    wdtEnable();
 
     //Enable the RTC
-    if (RTC_ENABLED) rtcEnable();
-
-    //LoRaModem.end();
-
+    rtcEnable();
 
 }
 
@@ -389,55 +316,11 @@ void loop() {
         //Flash the LED twice when it comes out of sleep before it goes back to sleep
         blink_led(100, 200, 2);
 
-        if (RTC_ENABLED) rtcSetDuration(RTCDuration);
+        rtcSetDuration(RTCDuration);
         RTCDuration ++;                     //Gradually increase the duration
         
-        if (RTC_ENABLED) rtcEnable();
-        if (WATCHDOG_ENABLED) wdtReset();
+        rtcEnable();
+        wdtReset();
     }
 
 }
-
-
-void base_setup() {
-    //Set all pins to input and 
-    
-    pinMode(LED_BUILTIN, OUTPUT);
-    pinMode(TESTMODE_SET, INPUT_PULLDOWN);
-    pinMode(INTERRUPT_SENSOR_PIN, INPUT_PULLDOWN);
-    
-    USBDevice.detach();
-    blink_led(50, 450, 5);
-
-}
-
-void base_loop() {
-
-    // Test for power
-
-    digitalWrite(LED_BUILTIN, HIGH);
-    if (DEBUG) Serial.println("Interrupt");
-
-    delayMicroseconds(250*1000);
-
-    digitalWrite(LED_BUILTIN, LOW);
-
-    delayMicroseconds(2500*1000);
-
-/*    SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
-    __DSB();
-    __WFI();
-*/
-
-    USBDevice.detach();
-    // Disable systick interrupt:  See https://www.avrfreaks.net/forum/samd21-samd21e16b-sporadically-locks-and-does-not-wake-standby-sleep-mode
-	SysTick->CTRL &= ~SysTick_CTRL_TICKINT_Msk;	
-	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
-	__DSB();
-	__WFI();
-	// Enable systick interrupt
-	SysTick->CTRL |= SysTick_CTRL_TICKINT_Msk;	
-	USBDevice.attach();
-
-}
-
