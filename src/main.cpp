@@ -107,12 +107,15 @@ void rtcSetup() {
 
     //This is from config32kOSC
     //RTC is using XOSC32K
+/* Commented out as using OSCULP32K
     SYSCTRL->XOSC32K.reg =  SYSCTRL_XOSC32K_ONDEMAND |          //S et it to run on demand
                             SYSCTRL_XOSC32K_RUNSTDBY |          // Set it to run in standby mode
                             SYSCTRL_XOSC32K_EN32K |             // Enable the Oscillator
                             SYSCTRL_XOSC32K_XTALEN |            // enablesd external crystal as a oscillator
                             SYSCTRL_XOSC32K_STARTUP(6) |        // Time allowed for startup stablisation
                             SYSCTRL_XOSC32K_ENABLE;             // 
+*/
+
 
     // The above code configures the clock, setting it to run in Idle or Standby sleep modes
     // Setting run standby = 1, on demand = 1 and enable = 1
@@ -129,15 +132,16 @@ void rtcSetup() {
   
     GCLK->GENCTRL.reg =     GCLK_GENCTRL_ID(1) |                // Select Generic Clock Controller 1        ***
                             GCLK_GENCTRL_GENEN |                // Enable the Generic Clock
-                            GCLK_GENCTRL_SRC_XOSC32K |          // Set the source to be XOSC32K
+//                            GCLK_GENCTRL_SRC_XOSC32K |          // Set the source to be XOSC32K
+                            GCLK_GENCTRL_SRC_OSCULP32K |
                             GCLK_GENCTRL_DIVSEL;                // Enabler Divide Selection
     while (GCLK->STATUS.reg & GCLK_STATUS_SYNCBUSY);
   
     GCLK->CLKCTRL.reg = (uint32_t)
                             GCLK_CLKCTRL_CLKEN |                // Enable the generic clock by setting the Clock Enabler bit
                             GCLK_CLKCTRL_GEN_GCLK1 |            // Select Generic Clock 1
-                            (RTC_GCLK_ID << GCLK_CLKCTRL_ID_Pos);     // Identify it as the RTC Clock - shifting it to the right position
-//ToDo1:Try this instead of the line above                            //GCLK_CLKCTRL_ID_RTC
+                            //(RTC_GCLK_ID << GCLK_CLKCTRL_ID_Pos);     // Identify it as the RTC Clock - shifting it to the right position
+                            GCLK_CLKCTRL_ID_RTC;
     while (GCLK->STATUS.bit.SYNCBUSY);                          // Wait for synchronisation to complete
 
 
@@ -243,6 +247,7 @@ void wdtSetup() {
     WDTCounter = 0;
 
     // Configure the Generic Clokc Generator
+/* Removed as it has been changed to use Gen Clk Ctrl 1 instead which is configured in rtcSetup
     // Generic clock generator 2, divisor = 32 (2^(DIV+1))  = _x
     GCLK->GENDIV.reg =  GCLK_GENDIV_ID(2) |                 // Select Generic Clock Controller 2
                         GCLK_GENDIV_DIV(gclkDivisor);                // Set division factor to be _x
@@ -254,11 +259,15 @@ void wdtSetup() {
                         GCLK_GENCTRL_SRC_OSCULP32K |        // Set the source to be OSCULP32K
                         GCLK_GENCTRL_DIVSEL;                // Enabler Divide Selection
     while(GCLK->STATUS.bit.SYNCBUSY);                       // Wait for synchronisation to complete
+*/
 
     // WDT clock = clock gen 2
+    // Swapped to clock gen 1 as per rtc
     GCLK->CLKCTRL.reg = GCLK_CLKCTRL_ID_WDT |               // Identify it as the WDT Clock
                         GCLK_CLKCTRL_CLKEN |                // Enable the generic clock by setting the Clock Enabler bit
-                        GCLK_CLKCTRL_GEN_GCLK2;             // Select Generic Clock 2
+                        //GCLK_CLKCTRL_GEN_GCLK2;             // Select Generic Clock 2
+                        GCLK_CLKCTRL_GEN_GCLK1;             // Select Generic Clock 2
+// Switched to using Clock Controller 1
     while(GCLK->STATUS.bit.SYNCBUSY);                       // Wait for synchronisation to complete
 
 
@@ -302,8 +311,13 @@ void wdtReset() {
 
 void setup () {
     
-    //Set all pins to input and 
+    //Set all pins to input and pull up to see if it helps.
     
+    for (byte i = 0; i <= A5; i++) {
+        pinMode (i, INPUT_PULLUP);    // changed as per below
+        //digitalWrite (i, LOW);  //     ditto
+    }
+
     pinMode(LED_BUILTIN, OUTPUT);
     pinMode(TESTMODE_SET, INPUT_PULLDOWN);
     pinMode(INTERRUPT_SENSOR_PIN, INPUT_PULLDOWN);
@@ -395,16 +409,3 @@ void base_loop() {
 
 }
 
-/*
-
-To Try
-Use only 1 clock
-Use only OSCULP32K
-
-Use a single Generic Clock Controller
-
-Set all I/O to input with pullup
-
-
-
-*/
