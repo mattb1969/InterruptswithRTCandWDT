@@ -10,6 +10,8 @@ It has the added timer counter to transmit evry 30 seconds
 
 #include <MKRWAN.h>
 
+#include "ArduinoLowPower.h"
+
 static const uint8_t        INTERRUPT_SENSOR_PIN = 4;
 static const uint16_t       SEND_FREQUENCY = 30;         // Send freq in Seconds
 
@@ -19,8 +21,10 @@ volatile bool               rtc_triggered = false;
 
 volatile bool               TEST_MODE = false;
 volatile bool               DEBUG = true;
-volatile bool               WATCHDOG_ENABLED = false;
-volatile bool               RTC_ENABLED = false;
+volatile bool               WATCHDOG_ENABLED = true;
+volatile bool               RTC_ENABLED = true;
+volatile bool               OTHER_ENABLED = false;
+volatile bool               EIC_ENABLED = true;
 
 volatile int                WDTCounter;
 volatile int                RTCDuration = 5;
@@ -68,9 +72,20 @@ void RTC_Handler(void) {
 }
 
 void EICRisingEdgeConfig() {
-    GCLK->CLKCTRL.reg =     GCLK_CLKCTRL_CLKEN |                    //Enable Generic Clock
-                            GCLK_CLKCTRL_GEN_GCLK1 |                // Select GCLK1 as XOSC32K
-                            GCLK_CLKCTRL_ID_EIC;                    // Route GCLK1 to the EIC
+
+    // Configure the clock to the Generic Clock Generator, plan to use GEN CLOCK 4
+    GCLK->GENDIV.reg =      GCLK_GENDIV_ID(4);                  // Select Generic Clock Controller 4
+ 
+    while (GCLK->STATUS.reg & GCLK_STATUS_SYNCBUSY);
+  
+    GCLK->GENCTRL.reg =     GCLK_GENCTRL_ID(4) |                // Select Generic Clock Controller 4
+                            GCLK_GENCTRL_GENEN |                // Enable the Generic Clock
+                            GCLK_GENCTRL_SRC_OSCULP32K;         // Set it to use to ultra low power clock
+    while (GCLK->STATUS.reg & GCLK_STATUS_SYNCBUSY);
+
+    GCLK->CLKCTRL.reg =     GCLK_CLKCTRL_CLKEN |                //Enable Generic Clock
+                            GCLK_CLKCTRL_GEN_GCLK4 |            // Select GCLK4
+                            GCLK_CLKCTRL_ID_EIC;                // Route GCLK4 to the EIC
     
     while (GCLK->STATUS.bit.SYNCBUSY); //Wait for the settings to be synchronized
     
@@ -327,37 +342,43 @@ void setup () {
 
     //EICRisingEdgeConfig();            // Not required as script works without it.
 
-    rtcSetup();
+    if (RTC_ENABLED) rtcSetup();
 
-    wdtSetup();
+    if (WATCHDOG_ENABLED) wdtSetup();
 
     // Setup interrupts
     attachInterrupt(digitalPinToInterrupt(INTERRUPT_SENSOR_PIN), interruptCalled, RISING);
+    
+    if (EIC_ENABLED) EICRisingEdgeConfig();
+    
+    if (OTHER_ENABLED) SYSCTRL->VREG.bit.RUNSTDBY = 1; // Keep the voltage regulator in normal configuration during run standby
 
-    SYSCTRL->VREG.bit.RUNSTDBY = 1; // Keep the voltage regulator in normal configuration during run standby
+    if (OTHER_ENABLED) SYSCTRL->DFLLCTRL.bit.RUNSTDBY = 1;     // Enable the DFLL48M clock in standby mode as this is used by the EIC
 
-    SYSCTRL->DFLLCTRL.bit.RUNSTDBY = 1;     // Enable the DFLL48M clock in standby mode as this is used by the EIC
+    if (OTHER_ENABLED) NVMCTRL->CTRLB.reg |= NVMCTRL_CTRLB_SLEEPPRM_DISABLED; // Disable auto power reduction during sleep - SAMD21 Errata 1.14.2
 
-    NVMCTRL->CTRLB.reg |= NVMCTRL_CTRLB_SLEEPPRM_DISABLED; // Disable auto power reduction during sleep - SAMD21 Errata 1.14.2
-
-    rtcSetDuration(RTCDuration);
+    if (RTC_ENABLED) rtcSetDuration(RTCDuration);
 
     // Enable the Watchdog
-    wdtEnable();
+    if (WATCHDOG_ENABLED) wdtEnable();
 
     //Enable the RTC
-    rtcEnable();
+    if (RTC_ENABLED) rtcEnable();
+
+    //LoRaModem.end();
 
 
 }
 
 void loop() {
 
-
-    // Go to sleep and wait for an interrupt to trigger
-    SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
-    __DSB();
-    __WFI();
+ // Disable systick interrupt:  See https://www.avrfreaks.net/forum/samd21-samd21e16b-sporadically-locks-and-does-not-wake-standby-sleep-mode
+	SysTick->CTRL &= ~SysTick_CTRL_TICKINT_Msk;	
+	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
+	__DSB();
+	__WFI();
+	// Enable systick interrupt
+	SysTick->CTRL |= SysTick_CTRL_TICKINT_Msk;	
 
     if (rtc_triggered) {
         // RTC has timed out
@@ -368,11 +389,11 @@ void loop() {
         //Flash the LED twice when it comes out of sleep before it goes back to sleep
         blink_led(100, 200, 2);
 
-        rtcSetDuration(RTCDuration);
+        if (RTC_ENABLED) rtcSetDuration(RTCDuration);
         RTCDuration ++;                     //Gradually increase the duration
         
-        rtcEnable();
-        wdtReset();
+        if (RTC_ENABLED) rtcEnable();
+        if (WATCHDOG_ENABLED) wdtReset();
     }
 
 }
@@ -403,9 +424,20 @@ void base_loop() {
 
     delayMicroseconds(2500*1000);
 
-    SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
+/*    SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
     __DSB();
     __WFI();
+*/
+
+    USBDevice.detach();
+    // Disable systick interrupt:  See https://www.avrfreaks.net/forum/samd21-samd21e16b-sporadically-locks-and-does-not-wake-standby-sleep-mode
+	SysTick->CTRL &= ~SysTick_CTRL_TICKINT_Msk;	
+	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
+	__DSB();
+	__WFI();
+	// Enable systick interrupt
+	SysTick->CTRL |= SysTick_CTRL_TICKINT_Msk;	
+	USBDevice.attach();
 
 }
 
