@@ -208,7 +208,6 @@ void wdtSetup() {
 
     uint8_t ewOffset = 0x0a;
     uint8_t timeoutPeriod = 0x0b;
-    uint8_t gclkDivisor = 4;
 
     WDTCounter = 0;
 
