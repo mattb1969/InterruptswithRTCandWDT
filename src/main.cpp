@@ -214,7 +214,7 @@ void wdtSetup() {
     // WDT clock = clock gen 1, Using Generic Clock Generator 1 - same as rtc
     GCLK->CLKCTRL.reg = GCLK_CLKCTRL_ID_WDT |               // Identify it as the WDT Clock
                         GCLK_CLKCTRL_CLKEN |                // Enable the generic clock by setting the Clock Enabler bit
-                        GCLK_CLKCTRL_GEN_GCLK1;             // Select Generic Clock 2
+                        GCLK_CLKCTRL_GEN_GCLK1;             // Select Generic Clock 1
 
     while(GCLK->STATUS.bit.SYNCBUSY);                       // Wait for synchronisation to complete
 
@@ -227,7 +227,7 @@ void wdtSetup() {
     // Configure the WDT settings for timneout control
     WDT->CTRL.bit.WEN        = 0;                           // Disable window mode
     WDT->INTENSET.bit.EW     = 1;                           // Enable early warning interrupt - enable the multi cycle mechanism via WDT_Handler()
-    WDT->EWCTRL.bit.EWOFFSET = ewOffset;                    // Early Warning Interrupt Time Offset 0x6 - 512 clockcycles = 0.5 seconds => trigger ISR
+    WDT->EWCTRL.bit.EWOFFSET = ewOffset;                    // Early Warning Interrupt Time Offset <0x2 - 0xb>
     WDT->CONFIG.bit.PER      = timeoutPeriod;               // Set period before hard WDT overflow <0x8 - 0xb>
     while(WDT->STATUS.bit.SYNCBUSY);                        // Wait for synchronisation to complete
 
