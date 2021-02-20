@@ -52,3 +52,4 @@ Disable Window mode
 Enable Early Warning interrupt
 Set Early Warning Interrupt Time Offset 0xa - 8,192 cycles - 8s with this config
 Set Period before hard WDT overflow <0x8 - 0xb> - 0xb - longer than the early warning interrupt
+
