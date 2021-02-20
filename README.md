@@ -15,7 +15,7 @@ The project is written in VS Code, the attached libraries were there for referen
 Clock | Clock Conroller | Usage
 ------|-----------------|------
 **OSCULP32K | **GCLK 1 | **WDT
-| |  **RTC
+ | |  **RTC
 
 ###OSCULP32K
 
