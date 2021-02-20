@@ -10,33 +10,28 @@ The example demonostrates the software by slowly increasing the RTC time until t
 
 The project is written in VS Code, the attached libraries were there for reference only, but have now been removed for clarity
 
-Clock Configuration
-===================
+## Clock Configuration
 
-_______________        ____________                 _________
-|  OSCULP32K  |   ->   |  GCLK 1  |   ---------->   |  WDT  |
-|_____________|        |__________|         |       |_______|
-                                            |       _________
-                                            |--->   |  RTC  |
-                                                    |_______|
+Clock | Clock Conroller | Usage
+------|-----------------|------
+**OSCULP32K | **GCLK 1 | **WDT
+| |  **RTC
 
-
-OSCULP32K
----------
+###OSCULP32K
 
 This clock is always on, so no additional configuration is required
 
 
-GCLK 1
-------
+###GCLK 1
+
 Set the Divisor to be 4. This is not divide by 4, but divide by 2^(4+1) = 2^5 = 32
 Enable the GCLK
 Enable Divisor Mode
 
 Output from GCLK1 is 32,768 / 32 = 1024Hz
 
-RTC Setup
----------
+###RTC Setup
+
 In Clock Control
 Set source to be GCLK 1
 Enable the GCLK1
@@ -46,8 +41,8 @@ Set to mode 0, 32 bit count
 Set divisor to 1024 - so resulting clock speed is 1Hz or 1 per second
 Disable Clear on Match
 
-WDT Setup
----------
+###WDT Setup
+
 In Clock Control
 Set source to be GCLK 1
 Enable the GCLK1
