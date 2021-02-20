@@ -24,32 +24,33 @@ This clock is always on, so no additional configuration is required
 
 ### GCLK 1
 
-Set the Divisor to be 4. This is not divide by 4, but divide by 2^(4+1) = 2^5 = 32
-Enable the GCLK
-Enable Divisor Mode
+Setup the Generic Clock Controller to take the signal from OSCULP32K and configure it to divide by a factor of 32
+* Set the Divisor to be 4. This is not divide by 4, but divide by 2^(4+1) = 2^5 = 32
+* Enable the GCLK
+* Enable Divisor Mode
 
 Output from GCLK1 is 32,768 / 32 = 1024Hz
 
 ### RTC Setup
 
 In Clock Control
-Set source to be GCLK 1
-Enable the GCLK1
+* Set source to be GCLK 1
+* Enable the GCLK1
 
 In Mode0 setup
-Set to mode 0, 32 bit count
-Set divisor to 1024 - so resulting clock speed is 1Hz or 1 per second
-Disable Clear on Match
+* Set to mode 0, 32 bit count
+* Set divisor to 1024 - so resulting clock speed is 1Hz or 1 per second
+* Disable Clear on Match
 
 ### WDT Setup
 
 In Clock Control
-Set source to be GCLK 1
-Enable the GCLK1
+* Set source to be GCLK 1
+* Enable the GCLK1
 
 In WDT settings
-Disable Window mode
-Enable Early Warning interrupt
-Set Early Warning Interrupt Time Offset 0xa - 8,192 cycles - 8s with this config
-Set Period before hard WDT overflow <0x8 - 0xb> - 0xb - longer than the early warning interrupt
+* Disable Window mode
+* Enable Early Warning interrupt
+* Set Early Warning Interrupt Time Offset 0xa - 8,192 cycles - 8s with this config
+* Set Period before hard WDT overflow <0x8 - 0xb> - 0xb - longer than the early warning interrupt
 
