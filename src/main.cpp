@@ -8,9 +8,19 @@ It has the added timer counter to transmit evry 30 seconds
 
 */
 
-#include <MKRWAN.h>
 
+
+#ifdef PIO_BOARD_MKRWAN
+#include <MKRWAN.h>
 static const uint8_t        INTERRUPT_SENSOR_PIN = 4;
+#endif
+
+#ifdef PIO_BOARD_NANO
+#include <Arduino.h>
+static const uint8_t        INTERRUPT_SENSOR_PIN = 2;
+#endif
+
+//static const uint8_t        INTERRUPT_SENSOR_PIN = 4;
 static const uint16_t       SEND_FREQUENCY = 30;         // Send freq in Seconds
 
 volatile bool               rtc_triggered = false;
@@ -176,7 +186,7 @@ void WDT_Handler(void) {
     if (WDTCounter<=0) {                                        // Software EWT counter run out of time : Reset
         // The following line is used in the class where WDT)SHutdown is defined as a function to call on soft shutdown
         //if (WDT_Shutdown != NULL) WDT_Shutdown();   // run extra Shutdown functions if defined
-        blink_led(50,50,5);
+        blink_led(100,200,3);
         WDT->CLEAR.reg = 0xFF;                      // value different than WDT_CLEAR_CLEAR_KEY causes reset
         while(true);
     }
@@ -209,7 +219,7 @@ void wdtSetup() {
     uint8_t ewOffset = 0x0a;
     uint8_t timeoutPeriod = 0x0b;
 
-    WDTCounter = 0;
+    WDTCounter = 3;
 
     // WDT clock = clock gen 1, Using Generic Clock Generator 1 - same as rtc
     GCLK->CLKCTRL.reg = GCLK_CLKCTRL_ID_WDT |               // Identify it as the WDT Clock
@@ -252,7 +262,7 @@ void wdtReset() {
     // Reset the timeout and the early warning Watchdog counter
     WDT->CLEAR.reg = WDT_CLEAR_CLEAR_KEY;                   // Clear WTD bit
     while(WDT->STATUS.bit.SYNCBUSY);                        // Wait for synchronisation to complete
-    WDTCounter = 0;                                         // Reset the early warning down counter value
+    WDTCounter = 3;                                         // Reset the early warning down counter value
     return;
 }
 
@@ -319,7 +329,7 @@ void loop() {
         RTCDuration ++;                     //Gradually increase the duration
         
         rtcEnable();
-        wdtReset();
+        //wdtReset();
     }
 
 }
